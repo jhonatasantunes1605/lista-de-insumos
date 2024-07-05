@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lista de Insumos (conferencia)</title>
+    <title>Lista de Insumos</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -88,13 +88,33 @@
     </style>
 </head>
 <body>
-    <h1>Lista de Insumos (Conferência).</h1>
-    <button class="add-button" id="openModalBtn">Adicionar</button>
+    <h1>Lista de Insumos</h1>
+
+    <!-- Filtros -->
+    <label for="filtroSetor">Filtrar por Setor:</label>
+    <select id="filtroSetor">
+        <option value="">Todos</option>
+        <option value="Bios">Bios</option>
+        <option value="RMA">RMA</option>
+        <option value="OpenBox">OpenBox</option>
+    </select>
+
+    <label for="filtroCategoria">Filtrar por Categoria:</label>
+    <select id="filtroCategoria">
+        <option value="">Todos</option>
+        <option value="Processador">Processador</option>
+        <option value="Memória">Memória</option>
+        <option value="Placa de Vídeo">Placa de Vídeo</option>
+        <option value="Armazenamento">Armazenamento</option>
+    </select>
+
+    <button class="add-button" id="openModalBtn">Adicionar Insumo</button>
     <table id="insumosTable">
         <thead>
             <tr>
                 <th>Nome</th>
                 <th>Categoria</th>
+                <th>Setor</th>
                 <th>Confirmar Serial</th>
                 <th>Status</th>
             </tr>
@@ -117,6 +137,12 @@
                     <option value="Placa de Vídeo">Placa de Vídeo</option>
                     <option value="Armazenamento">Armazenamento</option>
                 </select>
+                <select id="setor" required>
+                    <option value="" disabled selected>Setor</option>
+                    <option value="Bios">Bios</option>
+                    <option value="RMA">RMA</option>
+                    <option value="OpenBox">OpenBox</option>
+                </select>
                 <input type="text" id="serial" placeholder="Serial" required>
                 <button type="submit">Adicionar Insumo</button>
             </form>
@@ -129,11 +155,21 @@
         Parse.initialize("la2yMzwV7saXak9qzDTENoBCXAe4E0sk5JID8Fej", "Yh28SExwwjvbr7y2Ydtkc1nMOfu0pBoExO3TgDi5"); // Substitua pelos seus valores
         Parse.serverURL = "https://parseapi.back4app.com/";
 
-        const senhaCorreta = "1605"; // Defina a senha correta aqui
+        const senhaCorreta = "senha123"; // Defina a senha correta aqui
 
         async function listarInsumos() {
             const Insumo = Parse.Object.extend("Insumos");
             const query = new Parse.Query(Insumo);
+            const filtroSetor = document.getElementById('filtroSetor').value;
+            const filtroCategoria = document.getElementById('filtroCategoria').value;
+
+            if (filtroSetor) {
+                query.equalTo("setor", filtroSetor);
+            }
+            if (filtroCategoria) {
+                query.equalTo("categoria", filtroCategoria);
+            }
+
             try {
                 const results = await query.find();
                 const tabela = document.getElementById('insumosTable').getElementsByTagName('tbody')[0];
@@ -142,8 +178,9 @@
                     let linha = tabela.insertRow();
                     let cellNome = linha.insertCell(0);
                     let cellCategoria = linha.insertCell(1);
-                    let cellConfirmar = linha.insertCell(2);
-                    let cellStatus = linha.insertCell(3);
+                    let cellSetor = linha.insertCell(2);
+                    let cellConfirmar = linha.insertCell(3);
+                    let cellStatus = linha.insertCell(4);
 
                     const insumoId = insumo.id;
                     const serialReal = insumo.get("serial");
@@ -153,6 +190,7 @@
 
                     cellNome.textContent = insumo.get("nome");
                     cellCategoria.textContent = insumo.get("categoria");
+                    cellSetor.textContent = insumo.get("setor");
 
                     // Campo para confirmar serial
                     let inputSerial = document.createElement("input");
@@ -219,6 +257,7 @@
             event.preventDefault();
             const nome = document.getElementById('nome').value;
             const categoria = document.getElementById('categoria').value;
+            const setor = document.getElementById('setor').value; // Capturar o valor do setor selecionado
             const serial = document.getElementById('serial').value;
 
             const Insumo = Parse.Object.extend("Insumos");
@@ -226,6 +265,7 @@
 
             novoInsumo.set("nome", nome);
             novoInsumo.set("categoria", categoria);
+            novoInsumo.set("setor", setor); // Definir o Setor
             novoInsumo.set("serial", serial);
             novoInsumo.set("status", "pending");
 
@@ -242,7 +282,7 @@
         }
 
         function openModal() {
-            const senha = prompt("Por favor, insira a senha para adicionar um insumo:");
+            const senha = prompt("Digite a senha para adicionar um novo insumo:");
             if (senha === senhaCorreta) {
                 document.getElementById('myModal').style.display = "block";
             } else {
@@ -286,6 +326,8 @@
         document.getElementById('insumoForm').addEventListener('submit', inserirInsumo);
         document.getElementById('openModalBtn').addEventListener('click', openModal);
         document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        document.getElementById('filtroSetor').addEventListener('change', listarInsumos); // Atualizar lista ao alterar o filtro de Setor
+        document.getElementById('filtroCategoria').addEventListener('change', listarInsumos); // Atualizar lista ao alterar o filtro de Categoria
 
         window.onclick = function(event) {
             if (event.target == document.getElementById('myModal')) {
