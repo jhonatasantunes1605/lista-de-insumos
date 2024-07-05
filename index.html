@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Insumos (conferencia)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .add-button {
+            margin: 20px 0;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        input, select {
+            margin: 5px 0;
+            padding: 5px;
+            width: calc(100% - 22px);
+        }
+        button[type="submit"] {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .status {
+            margin: 10px;
+            padding: 5px;
+            color: white;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .status-ok {
+            background-color: green;
+        }
+        .status-pending {
+            background-color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lista de Insumos (Conferência).</h1>
+    <button class="add-button" id="openModalBtn">Adicionar</button>
+    <table id="insumosTable">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Confirmar Serial</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Os itens serão adicionados aqui dinamicamente -->
+        </tbody>
+    </table>
+
+    <!-- Modal -->
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeModalBtn">&times;</span>
+            <form id="insumoForm">
+                <input type="text" id="nome" placeholder="Nome" required>
+                <select id="categoria" required>
+                    <option value="" disabled selected>Categoria</option>
+                    <option value="Processador">Processador</option>
+                    <option value="Memória">Memória</option>
+                    <option value="Placa de Vídeo">Placa de Vídeo</option>
+                    <option value="Armazenamento">Armazenamento</option>
+                </select>
+                <input type="text" id="serial" placeholder="Serial" required>
+                <button type="submit">Adicionar Insumo</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/parse/3.3.0/parse.min.js"></script>
+    <script>
+        // Configuração do Parse
+        Parse.initialize("la2yMzwV7saXak9qzDTENoBCXAe4E0sk5JID8Fej", "Yh28SExwwjvbr7y2Ydtkc1nMOfu0pBoExO3TgDi5"); // Substitua pelos seus valores
+        Parse.serverURL = "https://parseapi.back4app.com/";
+
+        const senhaCorreta = "1605"; // Defina a senha correta aqui
+
+        async function listarInsumos() {
+            const Insumo = Parse.Object.extend("Insumos");
+            const query = new Parse.Query(Insumo);
+            try {
+                const results = await query.find();
+                const tabela = document.getElementById('insumosTable').getElementsByTagName('tbody')[0];
+                tabela.innerHTML = ""; // Limpar a tabela antes de inserir novos dados
+                results.forEach(insumo => {
+                    let linha = tabela.insertRow();
+                    let cellNome = linha.insertCell(0);
+                    let cellCategoria = linha.insertCell(1);
+                    let cellConfirmar = linha.insertCell(2);
+                    let cellStatus = linha.insertCell(3);
+
+                    const insumoId = insumo.id;
+                    const serialReal = insumo.get("serial");
+                    const ultimoConferido = insumo.get("ultimoConferido");
+                    const hoje = new Date();
+                    const isSameWeek = ultimoConferido && new Date(ultimoConferido).getTime() >= getLastFriday().getTime();
+
+                    cellNome.textContent = insumo.get("nome");
+                    cellCategoria.textContent = insumo.get("categoria");
+
+                    // Campo para confirmar serial
+                    let inputSerial = document.createElement("input");
+                    inputSerial.type = "text";
+                    inputSerial.placeholder = "Confirme o Serial";
+                    inputSerial.dataset.serialReal = serialReal;
+                    inputSerial.dataset.insumoId = insumoId;
+                    inputSerial.disabled = isSameWeek;
+                    cellConfirmar.appendChild(inputSerial);
+
+                    // Botão para confirmar serial
+                    let buttonConfirmar = document.createElement("button");
+                    buttonConfirmar.textContent = "Confirmar";
+                    buttonConfirmar.onclick = function() {
+                        confirmarSerial(inputSerial);
+                    };
+                    buttonConfirmar.disabled = isSameWeek;
+                    cellConfirmar.appendChild(buttonConfirmar);
+
+                    // Status do insumo
+                    let spanStatus = document.createElement("span");
+                    spanStatus.className = "status";
+                    spanStatus.id = `status-${insumoId}`;
+                    if (isSameWeek) {
+                        spanStatus.classList.add("status-ok");
+                        spanStatus.textContent = "Ok";
+                    } else {
+                        spanStatus.classList.add("status-pending");
+                        spanStatus.textContent = "Pendente";
+                    }
+                    cellStatus.appendChild(spanStatus);
+                });
+            } catch (error) {
+                console.error("Erro ao buscar insumos:", error);
+            }
+        }
+
+        async function confirmarSerial(input) {
+            const serialDigitado = input.value;
+            const serialReal = input.dataset.serialReal;
+            const insumoId = input.dataset.insumoId;
+
+            if (serialDigitado === serialReal) {
+                const Insumo = Parse.Object.extend("Insumos");
+                const query = new Parse.Query(Insumo);
+                try {
+                    const insumo = await query.get(insumoId);
+                    insumo.set("status", "ok");
+                    insumo.set("ultimoConferido", new Date().toISOString());
+                    await insumo.save();
+                    document.getElementById(`status-${insumoId}`).textContent = "Ok";
+                    document.getElementById(`status-${insumoId}`).className = "status status-ok";
+                    input.disabled = true;
+                    input.nextElementSibling.disabled = true;
+                } catch (error) {
+                    console.error("Erro ao atualizar status do insumo:", error);
+                }
+            } else {
+                alert("Serial incorreto. Por favor, tente novamente.");
+            }
+        }
+
+        async function inserirInsumo(event) {
+            event.preventDefault();
+            const nome = document.getElementById('nome').value;
+            const categoria = document.getElementById('categoria').value;
+            const serial = document.getElementById('serial').value;
+
+            const Insumo = Parse.Object.extend("Insumos");
+            const novoInsumo = new Insumo();
+
+            novoInsumo.set("nome", nome);
+            novoInsumo.set("categoria", categoria);
+            novoInsumo.set("serial", serial);
+            novoInsumo.set("status", "pending");
+
+            try {
+                await novoInsumo.save();
+                alert("Insumo adicionado com sucesso!");
+                document.getElementById('insumoForm').reset();
+                listarInsumos(); // Atualizar a lista de insumos
+                closeModal(); // Fechar o modal
+            } catch (error) {
+                console.error("Erro ao adicionar insumo:", error);
+                alert("Erro ao adicionar insumo. Por favor, tente novamente.");
+            }
+        }
+
+        function openModal() {
+            const senha = prompt("Por favor, insira a senha para adicionar um insumo:");
+            if (senha === senhaCorreta) {
+                document.getElementById('myModal').style.display = "block";
+            } else {
+                alert("Senha incorreta. Acesso negado.");
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('myModal').style.display = "none";
+        }
+
+        function getLastFriday() {
+            const today = new Date();
+            const lastFriday = new Date();
+            lastFriday.setDate(today.getDate() - (today.getDay() + 2) % 7);
+            lastFriday.setHours(0, 0, 0, 0);
+            return lastFriday;
+        }
+
+        async function checkPendingInsumos() {
+            const Insumo = Parse.Object.extend("Insumos");
+            const query = new Parse.Query(Insumo);
+            const results = await query.find();
+            const hoje = new Date();
+            const lastFriday = getLastFriday();
+
+            const pendingInsumos = results.filter(insumo => {
+                const ultimoConferido = insumo.get("ultimoConferido");
+                return !ultimoConferido || new Date(ultimoConferido).getTime() < lastFriday.getTime();
+            });
+
+            if (pendingInsumos.length > 0 && hoje.getDay() === 5) { // Sexta-feira
+                alert("Há itens pendentes para conferência.");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            listarInsumos();
+            checkPendingInsumos();
+        });
+        document.getElementById('insumoForm').addEventListener('submit', inserirInsumo);
+        document.getElementById('openModalBtn').addEventListener('click', openModal);
+        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('myModal')) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
