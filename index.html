@@ -21,8 +21,8 @@
         th {
             background-color: #f4f4f4;
         }
-        .add-button {
-            margin: 20px 0;
+        .add-button, .report-button {
+            margin: 20px 10px 20px 0;
             padding: 10px 20px;
             background-color: #4CAF50;
             color: white;
@@ -88,8 +88,14 @@
         .status-defeito {
             background-color: orange;
         }
+        #searchBar {
+            margin: 20px 0;
+            padding: 10px;
+            width: calc(100% - 22px);
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
     </style>
-    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
 </head>
 <body>
     <h1>Lista de Insumos</h1>
@@ -110,11 +116,14 @@
         <option value="Memória">Memória</option>
         <option value="Placa de Vídeo">Placa de Vídeo</option>
         <option value="Armazenamento">Armazenamento</option>
-          <option value="Air Cooler">Air Cooler</option>
-          <option value="Fonte">Fonte</option>
+        <option value="Air Cooler">Air Cooler</option>
+        <option value="Fonte">Fonte</option>
     </select>
 
+    <input type="text" id="searchBar" placeholder="Buscar por nome...">
+
     <button class="add-button" id="openModalBtn">Adicionar Insumo</button>
+    <button class="report-button" id="openReportModalBtn">Relatório</button>
     <table id="insumosTable">
         <thead>
             <tr>
@@ -181,11 +190,21 @@
         </div>
     </div>
 
-    <!-- Modal para leitor de QR code -->
-    <div id="qrcodeModal" class="modal">
+    <!-- Modal para relatório -->
+    <div id="reportModal" class="modal">
         <div class="modal-content">
-            <span class="close" id="closeQrCodeModalBtn">&times;</span>
-            <div id="qr-reader" style="width:100%"></div>
+            <span class="close" id="closeReportModalBtn">&times;</span>
+            <h3>Relatório de Insumos</h3>
+            <label for="reportSetor">Selecione o Setor:</label>
+            <select id="reportSetor">
+                <option value="Bios">Bios</option>
+                <option value="RMA">RMA</option>
+                <option value="OpenBox">OpenBox</option>
+            </select>
+            <button id="generateReportBtn">Gerar Relatório</button>
+            <div id="reportContent">
+                <!-- O relatório será exibido aqui -->
+            </div>
         </div>
     </div>
 
@@ -202,6 +221,7 @@
         const query = new Parse.Query(Insumo);
         const filtroSetor = document.getElementById('filtroSetor').value;
         const filtroCategoria = document.getElementById('filtroCategoria').value;
+        const searchTerm = document.getElementById('searchBar').value.toLowerCase();
 
         if (filtroSetor) {
             query.equalTo("setor", filtroSetor);
@@ -213,245 +233,261 @@
         try {
             const results = await query.find();
             const tabela = document.getElementById('insumosTable').getElementsByTagName('tbody')[0];
-            tabela.innerHTML = ""; // Limpar a tabela antes de inserir novos dados
-            results.forEach(insumo => {
-                let linha = tabela.insertRow();
-                let cellNome = linha.insertCell(0);
-                let cellCategoria = linha.insertCell(1);
-                let cellSetor = linha.insertCell(2);
-                let cellConfirmar = linha.insertCell(3);
-                let cellStatus = linha.insertCell(4);
-                let cellAcoes = linha.insertCell(5);
+            tabela.innerHTML = "";
+            results.forEach((insumo) => {
+                const nome = insumo.get("nome").toLowerCase();
+                if (nome.includes(searchTerm)) {
+                    const insumoId = insumo.id;
+                    const nome = insumo.get("nome");
+                    const categoria = insumo.get("categoria");
+                    const setor = insumo.get("setor");
+                    const serialReal = insumo.get("serial");
+                    const ultimoConferido = insumo.get("ultimoConferido");
 
-                const insumoId = insumo.id;
-                const serialReal = insumo.get("serial");
-                const ultimoConferido = insumo.get("ultimoConferido");
-                const hoje = new Date();
-                const isSameWeek = ultimoConferido && new Date(ultimoConferido).getTime() >= getLastFriday().getTime();
+                    const row = tabela.insertRow();
+                    const cellNome = row.insertCell(0);
+                    const cellCategoria = row.insertCell(1);
+                    const cellSetor = row.insertCell(2);
+                    const cellConfirmar = row.insertCell(3);
+                    const cellStatus = row.insertCell(4);
+                    const cellAcoes = row.insertCell(5);
 
-                cellNome.textContent = insumo.get("nome");
-                cellCategoria.textContent = insumo.get("categoria");
-                cellSetor.textContent = insumo.get("setor");
+                    cellNome.textContent = nome;
+                    cellCategoria.textContent = categoria;
+                    cellSetor.textContent = setor;
 
-                // Campo para confirmar serial
-                let inputSerial = document.createElement("input");
-                inputSerial.type = "text";
-                inputSerial.placeholder = "Digite o serial";
-                inputSerial.dataset.serialReal = serialReal;
-                inputSerial.dataset.insumoId = insumoId;
-                inputSerial.disabled = isSameWeek;
-                cellConfirmar.appendChild(inputSerial);
+                    let inputSerial = document.createElement("input");
+                    inputSerial.type = "text";
+                    inputSerial.dataset.serialReal = serialReal;
+                    inputSerial.dataset.insumoId = insumoId;
+                    inputSerial.value = "";
+                    cellConfirmar.appendChild(inputSerial);
 
-                // Botão para iniciar o leitor de QR code
-                let buttonQrcode = document.createElement("button");
-                buttonQrcode.textContent = "Scan QR Code";
-                buttonQrcode.onclick = function() {
-                    abrirQrCodeModal(inputSerial);
-                };
-                buttonQrcode.disabled = isSameWeek;
-                cellConfirmar.appendChild(buttonQrcode);
+                    let buttonConfirmar = document.createElement("button");
+                    buttonConfirmar.textContent = "Confirmar";
+                    buttonConfirmar.disabled = isSameWeek(ultimoConferido);
+                    buttonConfirmar.onclick = function() {
+                        const inputSerialValue = inputSerial.value;
+                        const serialReal = inputSerial.dataset.serialReal;
+                        const insumoId = inputSerial.dataset.insumoId;
+                        confirmarSerial(insumoId, inputSerialValue, serialReal);
+                    };
+                    cellConfirmar.appendChild(buttonConfirmar);
 
-                // Botão para confirmar serial
-                let buttonConfirmar = document.createElement("button");
-                buttonConfirmar.textContent = "Confirmar";
-                buttonConfirmar.onclick = function() {
-                    confirmarSerial(inputSerial);
-                };
-                buttonConfirmar.disabled = isSameWeek;
-                cellConfirmar.appendChild(buttonConfirmar);
+                    let statusSpan = document.createElement("span");
+                    statusSpan.classList.add("status");
+                    if (isSameWeek(ultimoConferido)) {
+                        statusSpan.textContent = "OK";
+                        statusSpan.classList.add("status-ok");
+                    } else {
+                        statusSpan.textContent = "Pendente";
+                        statusSpan.classList.add("status-pending");
+                    }
+                    cellStatus.appendChild(statusSpan);
 
-                let status = insumo.get("status");
-                cellStatus.id = `status-${insumoId}`;
-                if (status === "ok") {
-                    cellStatus.textContent = "Ok";
-                    cellStatus.className = "status status-ok";
-                } else if (status === "defeito") {
-                    cellStatus.textContent = "Defeito";
-                    cellStatus.className = "status status-defeito";
-                } else {
-                    cellStatus.textContent = "Pendente";
-                    cellStatus.className = "status status-pending";
+                    let buttonAcoes = document.createElement("button");
+                    buttonAcoes.textContent = "Ações";
+                    buttonAcoes.onclick = function() {
+                        document.getElementById('insumoIdAction').value = insumoId;
+                        openActionsModal();
+                    };
+                    cellAcoes.appendChild(buttonAcoes);
                 }
-
-                // Botão para ações
-                let buttonAcoes = document.createElement("button");
-                buttonAcoes.textContent = "Ações";
-                buttonAcoes.onclick = function() {
-                    abrirActionsModal(insumoId);
-                };
-                cellAcoes.appendChild(buttonAcoes);
             });
         } catch (error) {
-            console.error("Erro ao listar insumos:", error);
+            console.error("Erro ao listar insumos: " + error.message);
         }
     }
 
-    function getLastFriday() {
-        let date = new Date();
-        const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 5);
-        date.setDate(diff);
-        return new Date(date.setHours(0, 0, 0, 0));
+    function isSameWeek(date) {
+        if (!date) return false;
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const lastFriday = new Date(today);
+        lastFriday.setDate(today.getDate() - (dayOfWeek + 1) % 7);
+        const inputDate = new Date(date);
+        return inputDate >= lastFriday;
     }
 
-    function abrirQrCodeModal(inputSerial) {
-        if (typeof Html5Qrcode === "undefined") {
-            alert("Biblioteca de QR Code não carregada corretamente.");
-            return;
-        }
-
-        document.getElementById('qrcodeModal').style.display = "block";
-        const qrReader = new Html5Qrcode("qr-reader");
-        qrReader.start(
-            { facingMode: "environment" }, // Use rear camera
-            {
-                fps: 10,
-                qrbox: 250
-            },
-            qrCodeMessage => {
-                inputSerial.value = qrCodeMessage;
-                confirmarSerial(inputSerial);
-                qrReader.stop();
-                closeQrCodeModal();
-            },
-            errorMessage => {
-                console.log("QR Code no match.", errorMessage);
-            })
-            .catch(err => {
-                console.log("Unable to start scanning.", err);
-            });
-    }
-
-    function closeQrCodeModal() {
-        document.getElementById('qrcodeModal').style.display = "none";
-    }
-
-    async function confirmarSerial(input) {
-        const serialDigitado = input.value;
-        const serialReal = input.dataset.serialReal;
-        const insumoId = input.dataset.insumoId;
-
-        if (serialDigitado === serialReal) {
+    async function confirmarSerial(insumoId, inputSerial, serialReal) {
+        if (inputSerial === serialReal) {
             const Insumo = Parse.Object.extend("Insumos");
             const query = new Parse.Query(Insumo);
             try {
                 const insumo = await query.get(insumoId);
-                insumo.set("status", "ok");
-                insumo.set("ultimoConferido", new Date().toISOString());
+                insumo.set("ultimoConferido", new Date());
                 await insumo.save();
-                document.getElementById(`status-${insumoId}`).textContent = "Ok";
-                document.getElementById(`status-${insumoId}`).className = "status status-ok";
-                input.disabled = true;
-                input.nextElementSibling.disabled = true;
-                input.nextElementSibling.nextElementSibling.disabled = true;
+                listarInsumos(); // Atualizar a lista
             } catch (error) {
-                console.error("Erro ao atualizar status do insumo:", error);
+                console.error("Erro ao confirmar serial: " + error.message);
             }
         } else {
-            alert("Serial incorreto. Por favor, tente novamente.");
+            alert("Serial incorreto!");
         }
     }
 
-    function abrirActionsModal(insumoId) {
-        document.getElementById('insumoIdAction').value = insumoId;
-        document.getElementById('actionsModal').style.display = "block";
-    }
+    document.getElementById('filtroSetor').addEventListener('change', listarInsumos);
+    document.getElementById('filtroCategoria').addEventListener('change', listarInsumos);
+    document.getElementById('searchBar').addEventListener('input', listarInsumos);
 
-    function closeActionsModal() {
-        document.getElementById('actionsModal').style.display = "none";
-    }
-
-    function openModal() {
-        document.getElementById('myModal').style.display = "block";
-    }
-
-    function closeModal() {
-        document.getElementById('myModal').style.display = "none";
-    }
-
-    document.getElementById('openModalBtn').addEventListener('click', openModal);
-    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-    document.getElementById('closeActionsModalBtn').addEventListener('click', closeActionsModal);
-    document.getElementById('closeQrCodeModalBtn').addEventListener('click', closeQrCodeModal);
-
-    window.onclick = function(event) {
-        if (event.target == document.getElementById('myModal')) {
-            closeModal();
-        } else if (event.target == document.getElementById('actionsModal')) {
-            closeActionsModal();
-        } else if (event.target == document.getElementById('qrcodeModal')) {
-            closeQrCodeModal();
-        }
-    }
-
-    document.getElementById('insumoForm').addEventListener('submit', async function(event) {
+    document.getElementById('insumoForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const nome = document.getElementById('nome').value;
         const categoria = document.getElementById('categoria').value;
         const setor = document.getElementById('setor').value;
         const serial = document.getElementById('serial').value;
 
-        const Insumo = Parse.Object.extend("Insumos");
-        const insumo = new Insumo();
+        const senha = prompt("Digite a senha para adicionar insumo:");
+        if (senha === senhaCorreta) {
+            const Insumo = Parse.Object.extend("Insumos");
+            const insumo = new Insumo();
+            insumo.set("nome", nome);
+            insumo.set("categoria", categoria);
+            insumo.set("setor", setor);
+            insumo.set("serial", serial);
+            insumo.set("ultimoConferido", null);
 
-        insumo.set("nome", nome);
-        insumo.set("categoria", categoria);
-        insumo.set("setor", setor);
-        insumo.set("serial", serial);
-        insumo.set("status", "pendente");
-
-        try {
-            await insumo.save();
-            listarInsumos();
-            closeModal();
-        } catch (error) {
-            console.error("Erro ao adicionar insumo:", error);
+            try {
+                await insumo.save();
+                listarInsumos();
+                closeModal();
+            } catch (error) {
+                console.error("Erro ao adicionar insumo: " + error.message);
+            }
+        } else {
+            alert("Senha incorreta!");
         }
     });
 
-    document.getElementById('actionsForm').addEventListener('submit', async function(event) {
+    document.getElementById('actionsForm').addEventListener('submit', async (event) => {
         event.preventDefault();
         const insumoId = document.getElementById('insumoIdAction').value;
         const acao = document.getElementById('acao').value;
         const novoSetor = document.getElementById('novoSetor').value;
 
+        const senha = prompt("Digite a senha para executar a ação:");
+        if (senha === senhaCorreta) {
+            const Insumo = Parse.Object.extend("Insumos");
+            const query = new Parse.Query(Inumo);
+            try {
+                const insumo = await query.get(insumoId);
+                if (acao === 'transferir') {
+                    insumo.set("setor", novoSetor);
+                } else if (acao === 'defeito') {
+                    insumo.set("status", "defeito");
+                }
+                await insumo.save();
+                listarInsumos();
+                closeActionsModal();
+            } catch (error) {
+                console.error("Erro ao executar ação: " + error.message);
+            }
+        } else {
+            alert("Senha incorreta!");
+        }
+    });
+
+    async function gerarRelatorio(setor) {
         const Insumo = Parse.Object.extend("Insumos");
         const query = new Parse.Query(Insumo);
+        query.equalTo("setor", setor);
 
         try {
-            const insumo = await query.get(insumoId);
+            const results = await query.find();
+            const categoriaContagem = {};
 
-            if (acao === "transferir") {
-                if (!novoSetor) {
-                    alert("Por favor, selecione o novo setor.");
-                    return;
+            results.forEach((insumo) => {
+                const categoria = insumo.get("categoria");
+                if (categoriaContagem[categoria]) {
+                    categoriaContagem[categoria]++;
+                } else {
+                    categoriaContagem[categoria] = 1;
                 }
-                insumo.set("setor", novoSetor);
-            } else if (acao === "defeito") {
-                insumo.set("status", "defeito");
-            }
+            });
 
-            await insumo.save();
-            listarInsumos();
-            closeActionsModal();
+            const reportContent = document.getElementById('reportContent');
+            reportContent.innerHTML = "";
+
+            for (const categoria in categoriaContagem) {
+                const div = document.createElement('div');
+                div.textContent = `${categoria}: ${categoriaContagem[categoria]}`;
+                reportContent.appendChild(div);
+            }
         } catch (error) {
-            console.error("Erro ao executar ação:", error);
+            console.error("Erro ao gerar relatório: " + error.message);
         }
+    }
+
+    document.getElementById('generateReportBtn').addEventListener('click', () => {
+        const setor = document.getElementById('reportSetor').value;
+        gerarRelatorio(setor);
     });
+
+    const modal = document.getElementById("myModal");
+    const openModalBtn = document.getElementById("openModalBtn");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+
+    openModalBtn.onclick = function() {
+        modal.style.display = "block";
+    }
+
+    closeModalBtn.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    function closeModal() {
+        modal.style.display = "none";
+    }
+
+    const actionsModal = document.getElementById("actionsModal");
+    const closeActionsModalBtn = document.getElementById("closeActionsModalBtn");
+
+    closeActionsModalBtn.onclick = function() {
+        actionsModal.style.display = "none";
+    }
+
+    function openActionsModal() {
+        actionsModal.style.display = "block";
+    }
+
+    function closeActionsModal() {
+        actionsModal.style.display = "none";
+    }
+
+    const reportModal = document.getElementById("reportModal");
+    const openReportModalBtn = document.getElementById("openReportModalBtn");
+    const closeReportModalBtn = document.getElementById("closeReportModalBtn");
+
+    openReportModalBtn.onclick = function() {
+        reportModal.style.display = "block";
+    }
+
+    closeReportModalBtn.onclick = function() {
+        reportModal.style.display = "none";
+    }
+
+    function closeReportModal() {
+        reportModal.style.display = "none";
+    }
 
     document.getElementById('acao').addEventListener('change', function() {
-        const novoSetor = document.getElementById('novoSetor');
-        if (this.value === "transferir") {
-            novoSetor.style.display = "block";
+        if (this.value === 'transferir') {
+            document.getElementById('novoSetor').style.display = 'block';
         } else {
-            novoSetor.style.display = "none";
+            document.getElementById('novoSetor').style.display = 'none';
         }
     });
 
-    document.getElementById('filtroSetor').addEventListener('change', listarInsumos);
-    document.getElementById('filtroCategoria').addEventListener('change', listarInsumos);
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            closeModal();
+        } else if (event.target === actionsModal) {
+            closeActionsModal();
+        } else if (event.target === reportModal) {
+            closeReportModal();
+        }
+    }
 
-    // Inicializar a lista de insumos ao carregar a página
     listarInsumos();
     </script>
 </body>
