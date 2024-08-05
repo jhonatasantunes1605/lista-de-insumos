@@ -150,9 +150,7 @@
 
     <button class="add-button" id="openModalBtn">Adicionar Insumo</button>
     <button class="report-button" id="openReportModalBtn">Relatório</button>
-    
      <button class="print-button" id="printLabelsBtn">Imprimir Identificador</button>
-
     <table id="insumosTable">
         <thead>
             <tr>
@@ -246,7 +244,7 @@
 
     const senhaCorreta = "senha123"; // Defina a senha correta aqui
 
-     async function listarInsumos() {
+    async function listarInsumos() {
         const Insumo = Parse.Object.extend("Insumos");
         const query = new Parse.Query(Insumo);
         const filtroSetor = document.getElementById('filtroSetor').value;
@@ -344,18 +342,17 @@
             return;
         }
 
-         let printWindow = window.open('', '', 'height=400,width=600');
-            printWindow.document.write('<html><head><title>Imprimir Etiquetas</title>');
-            printWindow.document.write('<style>.etiqueta { width: 5cm; height: 2.5cm; border: none; page-break-inside: avoid; margin: 0; padding: 0; display: inline-block; } .etiqueta-content { transform: rotate(90deg); transform-origin: left top; width: 2.5cm; height: 5cm; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 10px; word-wrap: break-word; } .etiqueta-content * { margin: 0; padding: 0; box-sizing: border-box; } .barcode { margin-top: 5px; font-size: 12px; } body { visibility: hidden; } .print-section { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-wrap: wrap; }</style>');
-            printWindow.document.write('</head><body><div class="print-section">');
-
+        let printWindow = window.open('', '', 'height=400,width=600');
+        printWindow.document.write('<html><head><title>Imprimir Etiquetas</title>');
+        printWindow.document.write('<style>.label { width: 5cm; height: 2.5cm; border: 1px solid black; margin: 10px; padding: 10px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; }</style>');
+        printWindow.document.write('</head><body >');
 
         selectedItems.forEach((item) => {
             const nome = item.dataset.nome;
             const serial = item.dataset.serial;
             printWindow.document.write('<div class="label">');
-            printWindow.document.write(<div>${nome}</div>);
-            printWindow.document.write(<img src="https://barcode.tec-it.com/barcode.ashx?data=${serial}&code=Code128&translate-esc=off" alt="barcode" class="barcode"/>);
+            printWindow.document.write(`<div>${nome}</div>`);
+            printWindow.document.write(`<img src="https://barcode.tec-it.com/barcode.ashx?data=${serial}&code=Code128&translate-esc=off" alt="barcode" class="barcode"/>`);
             printWindow.document.write('</div>');
         });
 
@@ -478,7 +475,7 @@
 
             for (const categoria in categoriaContagem) {
                 const div = document.createElement('div');
-                div.textContent = ${categoria}: ${categoriaContagem[categoria]};
+                div.textContent = `${categoria}: ${categoriaContagem[categoria]}`;
                 reportContent.appendChild(div);
             }
         } catch (error) {
